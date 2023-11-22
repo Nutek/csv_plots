@@ -5,13 +5,55 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from functools import reduce
+from itertools import chain
+
+class ChartData:
+    def __init__(self, name):
+        self._name = name
+    def all_columns(self) -> list:
+        return []
+    def name(self) -> str:
+        return self._name
+    def prepare_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame()
+
+class SimpleData(ChartData):
+    def __init__(self, columnName, name=None) -> None:
+        super().__init__(name or columnName)
+        self.columnName = columnName
+    def all_columns(self):
+        return [self.columnName]
+    def prepare_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        new_df = df.loc[:, self.columnName].to_frame()
+        new_df.columns = [self.name()]
+        return new_df
+
+class RatioData(ChartData):
+    def __init__(self, columnNumName, columnDenomName, name=None) -> None:
+        super().__init__(name or f'Ratio {columnNumName} to {columnDenomName}')
+        self.columnNumName = columnNumName
+        self.columnDenomName = columnDenomName
+    def all_columns(self):
+        return [self.columnNumName, self.columnDenomName]
+    def prepare_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        new_df = (df.loc[:, self.columnNumName] / df.loc[:, self.columnDenomName]).to_frame()
+        new_df.columns = [self.name()]
+        return new_df
+
 
 edit_sep = ","
 desc_columns = ["Group", "Experiment"]
 index_column = ["Problem Space"]
 data_columns = ["us/Iteration", "Task sum[us] Mean", "Task creation[us] Mean"]
+# data_columns = ["us/Iteration"]#, "Task sum[us] Mean"] #, "Task creation[us] Mean"]
+charts = [
+    SimpleData("us/Iteration"),
+    SimpleData("Task sum[us] Mean"),
+    SimpleData("Task creation[us] Mean"),
+    RatioData("Task sum[us] Mean", "us/Iteration", "Proc_time ratio"),
+    RatioData("Task creation[us] Mean", "us/Iteration", "Creation to Proc time ratio"),
+]
 chart_columns = []
-
 
 def display_help(app_path):
     app = os.path.basename(app_path)
@@ -28,6 +70,8 @@ def display_help(app_path):
 def load_file(input_file_path):
     return pd.read_csv(input_file_path, sep=edit_sep, index_col=False)
 
+def all_in(sub_items, items) -> bool:
+    return all(map(lambda item: item in items, sub_items))
 
 def pd_and(arg1, arg2):
     return arg1 & arg2
@@ -51,18 +95,13 @@ def preapre_index(df: pd.DataFrame, experiment):
 def preapre_data(df: pd.DataFrame, experiment):
     global chart_columns
     chart_columns = list(data_columns)
-    data = df.loc[match_to_experiment(experiment), data_columns]
-
-    time_ratio = (data.iloc[:, 1] / data.iloc[:, 0]).to_frame()
-    time_ratio.columns = ["Proc_time ratio"]
-    chart_columns.extend(time_ratio.columns)
-    data = data.join(time_ratio)
-
-    time_ratio = (data.iloc[:, 2] / data.iloc[:, 0]).to_frame()
-    time_ratio.columns = ["Creation to Proc time ratio"]
-    chart_columns.extend(time_ratio.columns)
-    data = data.join(time_ratio)
-
+    df = df.loc[match_to_experiment(experiment), :]
+    data = pd.DataFrame()
+    new_dfs = [chart.prepare_frame(df) for chart in charts if all_in(chart.all_columns(), df.columns)]
+    
+    chart_columns = list(chain(*[new_df.columns.values.tolist() for new_df in new_dfs]))
+    print(experiment, chart_columns)
+    data = reduce(pd.DataFrame.join, new_dfs)        
     return data
 
 
