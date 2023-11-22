@@ -53,7 +53,6 @@ charts = [
     RatioData("Task sum[us] Mean", "us/Iteration", "Proc_time ratio"),
     RatioData("Task creation[us] Mean", "us/Iteration", "Creation to Proc time ratio"),
 ]
-chart_columns = []
 
 def display_help(app_path):
     app = os.path.basename(app_path)
@@ -93,14 +92,10 @@ def preapre_index(df: pd.DataFrame, experiment):
 
 
 def preapre_data(df: pd.DataFrame, experiment):
-    global chart_columns
-    chart_columns = list(data_columns)
     df = df.loc[match_to_experiment(experiment), :]
     data = pd.DataFrame()
     new_dfs = [chart.prepare_frame(df) for chart in charts if all_in(chart.all_columns(), df.columns)]
     
-    chart_columns = list(chain(*[new_df.columns.values.tolist() for new_df in new_dfs]))
-    print(experiment, chart_columns)
     data = reduce(pd.DataFrame.join, new_dfs)        
     return data
 
@@ -113,11 +108,14 @@ def generate_charts_data(loaded_data: pd.DataFrame, selected_experiments: list):
     value_datas = [
         preapre_data(loaded_data, experiment) for experiment in selected_experiments
     ]
+    if len(value_datas) == 0:
+        return {}
+
     for vals in value_datas:
         vals.index = index_data
-
+    
     result = {}
-    for chart_column in chart_columns:
+    for chart_column in value_datas[0].columns:
         chart_data = None
         for idx, experiment in enumerate(selected_experiments):
             column_to_add = value_datas[idx].loc[:, [chart_column]]
