@@ -138,9 +138,11 @@ class PlotManager:
         PlotManager.fig_no += 1
         fig = plt.figure(PlotManager.fig_no)
 
-        plots = fig.subplots(nrows=math.ceil((count + 0.5) / 2.0), ncols=2)
-        if not isinstance(plots, np.ndarray):
-            plots = np.ndarray([plots])
+        plots = fig.subplots(nrows=math.ceil((count) / 2.0), ncols=min(2, count))
+        if isinstance(plots, plt.Axes):
+            plots = [plots]
+        if isinstance(plots, np.ndarray):
+            plots = plots.flatten()
 
         return plots
 
@@ -148,7 +150,7 @@ class PlotManager:
 def plot_datasets(chart_datas):
     plots = PlotManager.prepare_plots(len(chart_datas))
 
-    for plot, (title, chart_data) in zip(plots.flatten(), chart_datas.items()):
+    for plot, (title, chart_data) in zip(plots, chart_datas.items()):
         chart_data.plot(ax=plot, title=title)
         plot.grid(visible=True)
 
